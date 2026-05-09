@@ -25,6 +25,27 @@ from services import sheets, budget as budget_svc
 from handlers.webhook import get_pending, remove_pending
 
 
+
+# ── Autocomplete danh mục ──────────────────────────────────────────────────────
+
+def _all_categories() -> list[str]:
+    """Trả về flat list tất cả danh mục dạng 'Owner › Category'."""
+    result = []
+    for owner, cats in config.CATEGORY_TREE.items():
+        for cat in cats:
+            result.append(f"{owner} › {cat}")
+    return result
+
+
+async def category_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    all_cats = _all_categories()
+    filtered = [c for c in all_cats if current.lower() in c.lower()] if current else all_cats
+    return [app_commands.Choice(name=c, value=c) for c in filtered[:25]]
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _format_owner_breakdown(spending_by_owner: dict[str, dict[str, float]]) -> list[str]:
@@ -218,6 +239,7 @@ def setup_commands(bot: discord.Client, tree: app_commands.CommandTree):
         category="Danh mục (vd: 👤 Cá nhân › 🍜 Ăn uống)",
         description="Mô tả",
     )
+    @app_commands.autocomplete(category=category_autocomplete)
     async def cmd_add(interaction: discord.Interaction, amount: float, tx_type: str, category: str, description: str):
         await interaction.response.defer()
         if tx_type not in ("income", "expense"):
@@ -235,6 +257,7 @@ def setup_commands(bot: discord.Client, tree: app_commands.CommandTree):
     # ── /write ─────────────────────────────────────────────────────────────────
     @tree.command(name="write", description="Phân loại giao dịch thủ công (fallback khi không dùng button)")
     @app_commands.describe(tx_id="ID giao dịch", category="Danh mục", description="Mô tả")
+    @app_commands.autocomplete(category=category_autocomplete)
     async def cmd_write(interaction: discord.Interaction, tx_id: str, category: str, description: str):
         await interaction.response.defer()
         pending = get_pending(tx_id)
@@ -258,7 +281,8 @@ def setup_commands(bot: discord.Client, tree: app_commands.CommandTree):
     budget_group = app_commands.Group(name="budget", description="Quản lý ngân sách theo danh mục")
 
     @budget_group.command(name="set", description="Đặt ngân sách cho 1 danh mục")
-    @app_commands.describe(category="Tên danh mục (vd: 👤 Cá nhân › 🍜 Ăn uống)", amount="Hạn mức VND/tháng")
+    @app_commands.describe(category="Chọn danh mục", amount="Hạn mức VND/tháng")
+    @app_commands.autocomplete(category=category_autocomplete)
     async def budget_set(interaction: discord.Interaction, category: str, amount: float):
         await interaction.response.defer()
         sheets.set_budget(category, amount)
