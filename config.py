@@ -20,24 +20,37 @@ SHEET_TRANSACTIONS = "Transactions"
 SHEET_BUDGET = "Budget"
 SHEET_CONFIG = "Config"
 
-# Danh mục chi tiêu mặc định
-DEFAULT_CATEGORIES = [
-    "🍜 Ăn uống",
-    "🏠 Nhà cửa",
-    "🚗 Di chuyển",
-    "🛍️ Mua sắm",
-    "💊 Sức khoẻ",
-    "🎮 Giải trí",
-    "📚 Học tập",
-    "💼 Công việc",
-    "💰 Thu nhập",
-    "🔄 Chuyển khoản",
-    "❓ Khác",
-]
+# Cấu trúc 2 tầng: Đối tượng → Danh mục
+# Tầng 1: Cá nhân / Gia đình
+# Tầng 2: Danh mục chi tiêu theo đối tượng
+CATEGORY_TREE = {
+    "👤 Cá nhân": [
+        "🍜 Ăn uống",
+        "🎮 Giải trí",
+        "👗 Quần áo",
+        "💊 Sức khoẻ",
+        "📚 Học tập",
+        "🚗 Di chuyển",
+        "💼 Công việc",
+        "❓ Khác",
+    ],
+    "🏠 Gia đình": [
+        "🛒 Đồ dùng gia đình",
+        "🍚 Thực phẩm",
+        "💡 Hoá đơn / tiện ích",
+        "🏥 Y tế",
+        "🎒 Con cái",
+        "🔧 Sửa chữa",
+        "❓ Khác",
+    ],
+}
+
+# Flat list để dùng cho báo cáo / budget
+DEFAULT_CATEGORIES = [cat for cats in CATEGORY_TREE.values() for cat in cats]
 
 # Ngưỡng cảnh báo ngân sách (%)
-BUDGET_WARNING_THRESHOLD = 80  # cảnh báo khi đã dùng 80%
-BUDGET_DANGER_THRESHOLD = 95  # cảnh báo nguy hiểm khi dùng 95%
+BUDGET_WARNING_THRESHOLD = 80
+BUDGET_DANGER_THRESHOLD = 95
 
 import base64, tempfile
 
