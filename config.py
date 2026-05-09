@@ -36,5 +36,16 @@ DEFAULT_CATEGORIES = [
 ]
 
 # Ngưỡng cảnh báo ngân sách (%)
-BUDGET_WARNING_THRESHOLD = 80   # cảnh báo khi đã dùng 80%
-BUDGET_DANGER_THRESHOLD = 95    # cảnh báo nguy hiểm khi dùng 95%
+BUDGET_WARNING_THRESHOLD = 80  # cảnh báo khi đã dùng 80%
+BUDGET_DANGER_THRESHOLD = 95  # cảnh báo nguy hiểm khi dùng 95%
+
+import base64, tempfile
+
+_b64 = os.getenv("GOOGLE_CREDENTIALS_BASE64")
+if _b64:
+    _tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+    _tmp.write(base64.b64decode(_b64))
+    _tmp.close()
+    GOOGLE_SERVICE_ACCOUNT_JSON = _tmp.name
+else:
+    GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "credentials.json")
