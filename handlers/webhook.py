@@ -110,3 +110,11 @@ async def sepay_webhook(request: Request):
     except Exception as e:
         log.exception(f"Webhook error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/admin/reset-budget")
+async def reset_budget():
+    """Xóa và populate lại Budget sheet với danh mục 2 tầng."""
+    from services.sheets import reset_budget_sheet
+    reset_budget_sheet()
+    return {"status": "ok", "message": "Budget sheet đã được reset"}

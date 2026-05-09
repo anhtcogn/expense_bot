@@ -1,9 +1,9 @@
 """
 Google Sheets service.
 Cấu trúc spreadsheet:
-  Sheet "Transactions": date | amount | type(income/expense) | category | description | source | tx_id
-  Sheet "Budget":       category | monthly_limit | current_month_spent
-  Sheet "Config":       key | value   (dùng lưu settings tuỳ chỉnh)
+  Sheet "Transactions": Date | Amount | Type | Category | Description | Source | TX_ID
+  Sheet "Budget":       Category | Monthly Limit | Note
+  Sheet "Config":       Key | Value
 """
 
 from __future__ import annotations
@@ -48,19 +48,34 @@ def _ensure_sheets():
     if config.SHEET_BUDGET not in existing:
         ws = ss.add_worksheet(config.SHEET_BUDGET, rows=50, cols=3)
         ws.append_row(["Category", "Monthly Limit", "Note"])
-        for cat in config.DEFAULT_CATEGORIES:
-            ws.append_row([cat, 0, ""])
+        # Populate đúng format 2 tầng: "👤 Cá nhân › 🍜 Ăn uống"
+        for owner, cats in config.CATEGORY_TREE.items():
+            for cat in cats:
+                ws.append_row([f"{owner} › {cat}", 0, ""])
 
     if config.SHEET_CONFIG not in existing:
         ws = ss.add_worksheet(config.SHEET_CONFIG, rows=20, cols=2)
         ws.append_row(["Key", "Value"])
 
 
+def reset_budget_sheet():
+    """Xóa và populate lại Budget sheet với category 2 tầng."""
+    ss = _get_spreadsheet()
+    ws = ss.worksheet(config.SHEET_BUDGET)
+    ws.clear()
+    ws.append_row(["Category", "Monthly Limit", "Note"])
+    rows = []
+    for owner, cats in config.CATEGORY_TREE.items():
+        for cat in cats:
+            rows.append([f"{owner} › {cat}", 0, ""])
+    ws.append_rows(rows)
+
+
 # ── Transactions ──────────────────────────────────────────────────────────────
 
 def add_transaction(
     amount: float,
-    tx_type: str,          # "income" | "expense"
+    tx_type: str,
     category: str,
     description: str,
     source: str = "manual",
@@ -74,9 +89,6 @@ def add_transaction(
 
 
 def get_transactions(month: Optional[str] = None) -> list[dict]:
-    """
-    Trả về list transactions, lọc theo tháng nếu có (format "YYYY-MM").
-    """
     ss = _get_spreadsheet()
     ws = ss.worksheet(config.SHEET_TRANSACTIONS)
     rows = ws.get_all_records()
@@ -86,12 +98,11 @@ def get_transactions(month: Optional[str] = None) -> list[dict]:
 
 
 def transaction_exists(tx_id: str) -> bool:
-    """Kiểm tra tx_id đã được ghi chưa (tránh duplicate webhook)."""
     if not tx_id:
         return False
     ss = _get_spreadsheet()
     ws = ss.worksheet(config.SHEET_TRANSACTIONS)
-    col = ws.col_values(7)  # TX_ID column
+    col = ws.col_values(7)
     return tx_id in col
 
 
@@ -104,21 +115,19 @@ def get_budgets() -> list[dict]:
 
 
 def set_budget(category: str, limit: float) -> bool:
-    """Cập nhật hoặc thêm ngân sách cho 1 danh mục. Trả về True nếu thành công."""
     ss = _get_spreadsheet()
     ws = ss.worksheet(config.SHEET_BUDGET)
     rows = ws.get_all_values()
-    for i, row in enumerate(rows[1:], start=2):  # bỏ header
+    for i, row in enumerate(rows[1:], start=2):
         if row[0].strip() == category.strip():
             ws.update_cell(i, 2, limit)
             return True
-    # Danh mục chưa có → thêm mới
     ws.append_row([category, limit, ""])
     return True
 
 
 def get_monthly_spending(month: str) -> dict[str, float]:
-    """Tổng chi theo danh mục trong tháng (format YYYY-MM)."""
+    """Tổng chi theo danh mục trong tháng."""
     txs = get_transactions(month)
     totals: dict[str, float] = {}
     for tx in txs:
@@ -126,6 +135,24 @@ def get_monthly_spending(month: str) -> dict[str, float]:
             cat = tx.get("Category", "❓ Khác")
             totals[cat] = totals.get(cat, 0) + float(tx.get("Amount", 0))
     return totals
+
+
+def get_monthly_spending_by_owner(month: str) -> dict[str, dict[str, float]]:
+    """
+    Tổng chi nhóm theo owner (Cá nhân / Gia đình).
+    Trả về: {"👤 Cá nhân": {"🍜 Ăn uống": 150000, ...}, "🏠 Gia đình": {...}}
+    """
+    spending = get_monthly_spending(month)
+    result: dict[str, dict[str, float]] = {}
+    for full_cat, amt in spending.items():
+        if " › " in full_cat:
+            owner, cat = full_cat.split(" › ", 1)
+        else:
+            owner, cat = "❓ Khác", full_cat
+        if owner not in result:
+            result[owner] = {}
+        result[owner][cat] = result[owner].get(cat, 0) + amt
+    return result
 
 
 def get_monthly_income(month: str) -> float:
